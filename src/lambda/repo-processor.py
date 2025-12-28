@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 s3 = boto3.client('s3')
 bedrock_kb = boto3.client('bedrock-agent-runtime')
-github_token = os.environ['GITHUB_TOKEN']
+github_token = os.environ['GH_TOKEN']
 
 class ProductionZRead:
     def __init__(self):
