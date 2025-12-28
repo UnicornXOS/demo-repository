@@ -1,0 +1,9 @@
+Parameters:
+  GitHubToken: !Ref GitHubTokenParam
+  CraftApiKey: !Ref CraftApiKeyParam
+  RepoUrl: !Ref RepoUrlParam  # webhook trigger
+
+Outputs:
+  LambdaUrl: !GetAtt ApiGatewayInvokeUrl
+  S3Bucket: !Ref S3Bucket
+  CraftUrls: !Sub 'https://craft.io/spaces/${SpaceId}/docs/'
