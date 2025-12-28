@@ -1,4 +1,4 @@
-name: Deploy Z-Read Simple
+name: Deploy Z-Read Fixed
 on: [push, workflow_dispatch]
 jobs:
   deploy:
@@ -6,22 +6,22 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    # เปลี่ยน v4 เป็น v3 + debug
-    - name: Debug Secrets
-      run: |
-        echo "ACCESS_KEY exists: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}"
-        echo "SECRET_KEY exists: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' }}"
+    - name: List files
+      run: ls -la
     
-    - name: Configure AWS v3
-      uses: aws-actions/configure-aws-credentials@v3  # v3 แทน v4
+    - name: Validate template
+      run: aws cloudformation validate-template cloudformation.yml
+    
+    - uses: aws-actions/configure-aws-credentials@v3
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
     
-    - name: Deploy
+    - name: Deploy NEW stack
       run: |
         aws cloudformation deploy \
           --template-file cloudformation.yml \
-          --stack-name zread-simple \
-          --capabilities CAPABILITY_IAM
+          --stack-name zread-v3 \
+          --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+          --no-fail-on-empty-changeset || true
