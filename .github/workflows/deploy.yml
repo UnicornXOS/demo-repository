@@ -1,21 +1,9 @@
-# .github/workflows/deploy.yml
-name: Deploy Z-Read
-on: [push]
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-    - run: |
-        aws cloudformation deploy \
-          --template-file infrastructure/full-stack.yml \
-          --stack-name zread-full \
-          --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-          --parameter-overrides \
-            GitHubToken=${{ secrets.GITHUB_TOKEN }} \
-            CraftApiKey=${{ secrets.CRAFT_API_KEY }}
+- name: Deploy Stack
+  run: |
+    aws cloudformation deploy \
+      --template-file infrastructure/full-stack.yml \
+      --stack-name zread-full \
+      --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+      --parameter-overrides \
+        GitHubToken=${{ secrets.GH_TOKEN }} \
+        CraftApiKey=${{ secrets.CRAFT_API_KEY }}
