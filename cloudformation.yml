@@ -7,33 +7,40 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: {Service: lambda.amazonaws.com}
+            Principal:
+              Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: BasicLambda
+        - PolicyName: LambdaBasic
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: ['logs:*','s3:*','bedrock:InvokeModel']
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
                 Resource: '*'
 
-  ZReadLambda:
+  TestLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: zread-simple
-      Code:
-        ZipFile: |
-          import json,boto3,requests,base64
-          def handler(event,context):
-            body=json.loads(event.get('body','{}'))
-            repo=body.get('repo_url','https://github.com/octocat/Hello-World')
-            return {'statusCode':200,'body':json.dumps({'ready':True,'repo':repo})}
+      FunctionName: zread-test
+      Runtime: python3.12
       Handler: index.handler
       Role: !GetAtt LambdaRole.Arn
-      Runtime: python3.12
-      Timeout: 30
-
-Outputs:
-  LambdaArn:
-    Value: !GetAtt ZReadLambda.Arn
+      Code:
+        ZipFile: |
+          def handler(event, context):
+            import json
+            body = json.loads(event.get('body', '{}'))
+            repo = body.get('repo_url', 'test')
+            return {
+              'statusCode': 200, 
+              'body': json.dumps({
+                'status': 'Z-Read working!', 
+                'repo': repo,
+                'files': 20,
+                'cost': '$0.01'
+              })
+            }
