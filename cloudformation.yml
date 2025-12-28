@@ -33,3 +33,7 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Runtime: python3.12
       Timeout: 30
+
+Outputs:
+  LambdaArn:
+    Value: !GetAtt ZReadLambda.Arn
