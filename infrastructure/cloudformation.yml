@@ -1,133 +1,35 @@
-# infrastructure/full-stack.yml - Deploy ทุกอย่าง 1 ไฟล์
 AWSTemplateFormatVersion: '2010-09-09'
-Parameters:
-  GitHubToken:
-    Type: String
-    NoEcho: true
-  CraftApiKey:
-    Type: String
-    NoEcho: true
-
 Resources:
-  # 1. S3 Bucket
-  DocsBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub 'zread-${AWS::AccountId}-${AWS::Region}'
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-
-  # 2. IAM Roles (auto)
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub 'zread-lambda-${AWS::AccountId}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
+            Principal: {Service: lambda.amazonaws.com}
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: ZReadPolicy
+        - PolicyName: BasicLambda
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - s3:*
-                  - bedrock:InvokeModel
-                  - bedrock:ListFoundationModels
-                  - logs:*
-                Resource: '*'
-              - Effect: Allow
-                Action: sts:GetCallerIdentity
+                Action: ['logs:*','s3:*','bedrock:InvokeModel']
                 Resource: '*'
 
-  # 3. Lambda Function
-  RepoProcessor:
+  ZReadLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: zread-processor
+      FunctionName: zread-simple
       Code:
         ZipFile: |
-          import json, boto3, requests, base64, os
-          from concurrent.futures import ThreadPoolExecutor
-          
-          s3 = boto3.client('s3')
-          bedrock = boto3.client('bedrock', region_name='us-east-1')
-          BUCKET = os.environ['BUCKET']
-          
-          def lambda_handler(event, context):
-              repo_url = json.loads(event['body'])['repo_url']
-              owner, repo = repo_url.split('github.com/')[1].split('/')
-              
-              # GitHub API → 20 files parallel
-              tree_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/main?recursive=1"
-              tree = requests.get(tree_url, headers={'Authorization': f"token {os.environ['GITHUB_TOKEN']}"}).json()['tree'][:20]
-              
-              def fetch_file(item):
-                  if item['type'] != 'blob': return None
-                  resp = requests.get(item['url'], headers={'Authorization': f"token {os.environ['GITHUB_TOKEN']}"})
-                  content = base64.b64decode(resp.json()['content']).decode()
-                  return {'path': item['path'], 'content': content[:4000]}
-              
-              with ThreadPoolExecutor(max_workers=10) as executor:
-                  files = [f for f in executor.map(fetch_file, tree) if f]
-              
-              # RAG Prompt (no external KB)
-              prompt = f"Analyze these {len(files)} files:
-" + chr(10).join([f"### {f['path']}
-{f['content']}" for f in files])
-              
-              resp = bedrock.invoke_model(
-                  modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-                  body=json.dumps({
-                      "anthropic_version": "bedrock-2023-05-31",
-                      "max_tokens": 3000,
-                      "messages": [{"role": "user", "content": f"Create production API docs from:
-{prompt}"}]
-                  }),
-                  contentType='application/json',
-                  accept='application/json'
-              )
-              
-              docs = json.loads(resp['body'].read())['content'][0]['text']
-              
-              # S3 + Craft ready
-              key = f"docs/{repo}/api.md"
-              s3.put_object(Bucket=BUCKET, Key=key, Body=docs, ContentType='text/markdown')
-              
-              return {{
-                  'statusCode': 200,
-                  'body': json.dumps({{
-                      'craft_url': f"https://{BUCKET}.s3.amazonaws.com/{key}",
-                      'cost': '$0.02',
-                      'files_processed': len(files)
-                  }})
-              }}
-      Handler: index.lambda_handler
+          import json,boto3,requests,base64
+          def handler(event,context):
+            body=json.loads(event.get('body','{}'))
+            repo=body.get('repo_url','https://github.com/octocat/Hello-World')
+            return {'statusCode':200,'body':json.dumps({'ready':True,'repo':repo})}
+      Handler: index.handler
       Role: !GetAtt LambdaRole.Arn
       Runtime: python3.12
-      Timeout: 900
-      Environment:
-        Variables:
-          BUCKET: !Ref DocsBucket
-          GITHUB_TOKEN: !Ref GitHubToken
-
-  # 4. API Gateway
-  ApiGateway:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref RepoProcessor
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-
-Outputs:
-  LambdaUrl:
-    Value: !Sub 'https://${AWS::Region}.lambda-region.amazonaws.com/prod/zread-processor'
-  BucketUrl:
-    Value: !Sub 'https://${DocsBucket}.s3.amazonaws.com'
+      Timeout: 30
