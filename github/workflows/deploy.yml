@@ -1,0 +1,39 @@
+name: Full Z-Read Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      repo_url:
+        description: 'Target repo for testing'
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Deploy Stack
+      run: |
+        aws cloudformation deploy \
+          --template-file infrastructure/cloudformation.yml \
+          --stack-name zread-stack \
+          --capabilities CAPABILITY_IAM \
+          --parameter-overrides \
+            GitHubToken=${{ secrets.GITHUB_TOKEN }} \
+            CraftApiKey=${{ secrets.CRAFT_API_KEY }}
+    
+    - name: Test Pipeline
+      run: |
+        aws lambda invoke \
+          --function-name RepoProcessorFunction \
+          --payload '{"repo_url": "${{ github.event.inputs.repo_url }}"}' \
+          output.json && cat output.json
